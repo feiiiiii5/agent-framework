@@ -2235,7 +2235,11 @@ def _process_update(response: ChatResponse | AgentResponse, update: ChatResponse
         and update.finish_reason is not None
     ):
         response.finish_reason = update.finish_reason
-    response.continuation_token = update.continuation_token
+    # Guarded like every field above: a provider stamps the token on the events that report
+    # the operation in progress, not on the content deltas that follow. Assigning it
+    # unconditionally would clear a still-valid token, and ``None`` means "complete".
+    if update.continuation_token is not None:
+        response.continuation_token = update.continuation_token
 
 
 def _merge_function_call_content(message: Message, content: Content) -> None:

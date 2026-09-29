@@ -1386,6 +1386,41 @@ def test_chat_response_update_accepts_model_alias() -> None:
     assert response_update.model == "claude-test"
 
 
+def test_chat_response_updates_keep_continuation_token_until_the_last_one():
+    """A token reported on the first update survives the content deltas that follow.
+
+    Providers stamp the token on the events that report the operation in progress, not
+    on every event, and ``None`` on a response means the operation is complete.
+    """
+    response_updates = [
+        ChatResponseUpdate(
+            contents=[Content.from_text("working")],
+            message_id="1",
+            response_id="resp_1",
+            continuation_token=cast(Any, {"response_id": "resp_1"}),
+        ),
+        ChatResponseUpdate(contents=[Content.from_text("...still working")], message_id="1"),
+    ]
+
+    chat_response = ChatResponse.from_updates(response_updates)
+
+    assert chat_response.text == "working...still working"
+    assert chat_response.response_id == "resp_1"
+    assert chat_response.continuation_token == {"response_id": "resp_1"}
+
+
+def test_chat_response_updates_take_the_last_continuation_token():
+    """A provider that rotates the token mid-stream still wins with the newest one."""
+    response_updates = [
+        ChatResponseUpdate(contents=[Content.from_text("a")], continuation_token=cast(Any, {"id": 1})),
+        ChatResponseUpdate(contents=[Content.from_text("b")], continuation_token=cast(Any, {"id": 2})),
+    ]
+
+    chat_response = ChatResponse.from_updates(response_updates)
+
+    assert chat_response.continuation_token == {"id": 2}
+
+
 def test_chat_response_updates_to_chat_response_one():
     """Test converting ChatResponseUpdate to ChatResponse."""
     # Create a Message
